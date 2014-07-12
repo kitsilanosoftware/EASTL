@@ -29,28 +29,45 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 #include <EASTL/internal/config.h>
-#include <EASTL/string.h>
-#include <EABase/eabase.h>
+#include <EASTL/allocator.h>
 
 
-namespace eastl
-{
-
-    /// gEmptyString
-    ///
-    /// gEmptyString is used for empty strings. This allows us to avoid allocating
-    /// memory for empty strings without having to add null pointer checks. 
-    /// The downside of this technique is that all empty strings share this same
-    /// value and if any code makes an error and writes to this value with non-zero,
-    /// then all existing empty strings will be wrecked and not just the one that
-    /// was incorrectly overwritten.
-    EASTL_API EmptyString gEmptyString = { 0 };
+///////////////////////////////////////////////////////////////////////////////
+// ReadMe
+//
+// This file implements the default application allocator. 
+// You can replace this allocator.cpp file with a different one,
+// you can define EASTL_USER_DEFINED_ALLOCATOR below to ignore this file,
+// or you can modify the EASTL config.h file to redefine how allocators work.
+///////////////////////////////////////////////////////////////////////////////
 
 
-} // namespace eastl
+#ifndef EASTL_USER_DEFINED_ALLOCATOR // If the user hasn't declared that he has defined an allocator implementation elsewhere...
+
+    namespace eastl
+    {
+
+        /// gDefaultAllocator
+        /// Default global allocator instance. 
+        EASTL_API allocator   gDefaultAllocator;
+        EASTL_API allocator* gpDefaultAllocator = &gDefaultAllocator;
+
+        EASTL_API allocator* GetDefaultAllocator()
+        {
+            return gpDefaultAllocator;
+        }
+
+        EASTL_API allocator* SetDefaultAllocator(allocator* pAllocator)
+        {
+            allocator* const pPrevAllocator = gpDefaultAllocator;
+            gpDefaultAllocator = pAllocator;
+            return pPrevAllocator;
+        }
+
+    } // namespace eastl
 
 
-
+#endif // EASTL_USER_DEFINED_ALLOCATOR
 
 
 

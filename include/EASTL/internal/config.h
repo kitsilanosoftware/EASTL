@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2005,2009-2010 Electronic Arts, Inc.  All rights reserved.
+Copyright (C) 2005,2009,2010,2012 Electronic Arts, Inc.  All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions
@@ -25,10 +25,10 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-
 ///////////////////////////////////////////////////////////////////////////////
 // EASTL/internal/config.h
-// Written and maintained by Paul Pedriana - 2005.
+//
+// Written by Paul Pedriana.
 ///////////////////////////////////////////////////////////////////////////////
 
 
@@ -96,12 +96,12 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // VC++ bug fix.
 ///////////////////////////////////////////////////////////////////////////////
 
-#ifdef _MSC_VER
-    // VC8 has a bug whereby it generates a warning when malloc.h is #included
-    // by its headers instead of by yours. There is no practical solution but
-    // to pre-empt the #include of malloc.h with our own inclusion of it. 
-    // The only other alternative is to disable the warning globally, which is
-    // something we try to avoid as much as possible.
+#if defined(_MSC_VER) && (_MSC_VER < 1500)
+    // VC8 (VS2005) has a bug whereby it generates a warning when malloc.h is 
+    // #included by its headers instead of by yours. There is no practical 
+    // solution but to pre-empt the #include of malloc.h with our own inclusion 
+    // of it. The only other alternative is to disable the warning globally, 
+    // which is something we try to avoid as much as possible.
     #pragma warning(push, 0)
     #include <malloc.h>
     #pragma warning(pop)
@@ -131,8 +131,8 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ///////////////////////////////////////////////////////////////////////////////
 
 #ifndef EASTL_VERSION
-    #define EASTL_VERSION   "1.11.03"
-    #define EASTL_VERSION_N  11103
+    #define EASTL_VERSION   "1.15.03"
+    #define EASTL_VERSION_N  11503
 #endif
 
 
@@ -144,6 +144,11 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // Implements support for the definition of EA_PLATFORM_MICROSOFT for the case
 // of using EABase versions prior to the addition of its EA_PLATFORM_MICROSOFT support.
 //
+#if (EABASE_VERSION_N < 20022) && !defined(EA_PLATFORM_MICROSOFT)
+    #if defined(EA_PLATFORM_WINDOWS) || defined(CS_UNDEFINED_STRING)
+        #define EA_PLATFORM_MICROSOFT 1
+    #endif
+#endif
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -153,7 +158,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // Implements support for the definition of EA_COMPILER_NO_STANDARD_CPP_LIBRARY for the case
 // of using EABase versions prior to the addition of its EA_COMPILER_NO_STANDARD_CPP_LIBRARY support.
 //
-#if (EABASE_VERSION_N < 20022) && !defined(EA_COMPILER_NO_STANDARD_CPP_LIBRARY)
+#if !defined(EA_COMPILER_NO_STANDARD_CPP_LIBRARY)
 #endif
 
 
@@ -212,6 +217,11 @@ namespace eastl
     #endif
 #endif
 
+// Developer debug. Helps EASTL developers assert EASTL is coded correctly. 
+// Normally disabled for users since it validates internal things and not user things.
+#ifndef EASTL_DEV_DEBUG
+    #define EASTL_DEV_DEBUG 0
+#endif
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -259,7 +269,6 @@ namespace eastl
 #endif
 
 
-
 ///////////////////////////////////////////////////////////////////////////////
 // EASTL_API
 //
@@ -271,12 +280,13 @@ namespace eastl
 // functions in a DLL.
 //
 // Example usage of EASTL_API:
-//    EASTL_API int someVariable = 10;  // Export someVariable in a DLL build.
+//    EASTL_API int someVariable = 10;      // Export someVariable in a DLL build.
 //
-//    struct EASTL_API SomeClass{       // Export SomeClass and its member functions in a DLL build.
+//    struct EASTL_API SomeClass{           // Export SomeClass and its member functions in a DLL build.
+//        EASTL_LOCAL void PrivateMethod(); // Not exported.
 //    };
 //
-//    EASTL_API void SomeFunction();    // Export SomeFunction in a DLL build.
+//    EASTL_API void SomeFunction();        // Export SomeFunction in a DLL build.
 //
 //
 #if defined(EA_DLL) && !defined(EASTL_DLL)
@@ -284,14 +294,72 @@ namespace eastl
 #endif
 
 #ifndef EASTL_API // If the build file hasn't already defined this to be dllexport...
-    #if EASTL_DLL && defined(_MSC_VER)
-        #define EASTL_API           __declspec(dllimport)
-        #define EASTL_TEMPLATE_API  // Not sure if there is anything we can do here.
+    #if EASTL_DLL 
+        #if defined(_MSC_VER)
+            #define EASTL_API      __declspec(dllimport)
+            #define EASTL_LOCAL
+        #elif defined(__CYGWIN__)
+            #define EASTL_API      __attribute__((dllimport))
+            #define EASTL_LOCAL
+        #elif (defined(__GNUC__) && (__GNUC__ >= 4))
+            #define EASTL_API      __attribute__ ((visibility("default")))
+            #define EASTL_LOCAL    __attribute__ ((visibility("hidden")))
+        #else
+            #define EASTL_API
+            #define EASTL_LOCAL
+        #endif
     #else
         #define EASTL_API
-        #define EASTL_TEMPLATE_API
+        #define EASTL_LOCAL
     #endif
 #endif
+
+
+///////////////////////////////////////////////////////////////////////////////
+// EASTL_EASTDC_API
+//
+// This is used for importing EAStdC functions into EASTL, possibly via a DLL import.
+//
+#ifndef EASTL_EASTDC_API
+    #if EASTL_DLL 
+        #if defined(_MSC_VER)
+            #define EASTL_EASTDC_API      __declspec(dllimport)
+            #define EASTL_EASTDC_LOCAL
+        #elif defined(__CYGWIN__)
+            #define EASTL_EASTDC_API      __attribute__((dllimport))
+            #define EASTL_EASTDC_LOCAL
+        #elif (defined(__GNUC__) && (__GNUC__ >= 4))
+            #define EASTL_EASTDC_API      __attribute__ ((visibility("default")))
+            #define EASTL_EASTDC_LOCAL    __attribute__ ((visibility("hidden")))
+        #else
+            #define EASTL_EASTDC_API
+            #define EASTL_EASTDC_LOCAL
+        #endif
+    #else
+        #define EASTL_EASTDC_API
+        #define EASTL_EASTDC_LOCAL
+    #endif
+#endif
+
+
+///////////////////////////////////////////////////////////////////////////////
+// EASTL_EASTDC_VSNPRINTF
+//
+// Defined as 0 or 1.
+//
+// Eventually this option will go away and unilaterally be enabled.
+// If enabled then EASTL uses EAStdC's Vsnprintf function directly instead of 
+// having the user provide a global Vsnprintf8/16/32 function. The benefit 
+// of this is that it will allow EASTL to just link to EAStdC's Vsnprintf 
+// without the user doing anything. The downside is that switching to this 
+// will break any users who aren't already using EAStdC. The fix for them is
+// to either provide EAStdC or simply provide functions that have the same 
+// names. See the usage of EASTL_EASTDC_VSNPRINTF in string.h for more info.
+//
+#if !defined(EASTL_EASTDC_VSNPRINTF)
+    #define EASTL_EASTDC_VSNPRINTF 0
+#endif
+
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -368,6 +436,12 @@ namespace eastl
 
 #ifndef EASTL_ASSERT_ENABLED
     #define EASTL_ASSERT_ENABLED EASTL_DEBUG
+#endif
+
+// Developer assert. Helps EASTL developers assert EASTL is coded correctly. 
+// Normally disabled for users since it validates internal things and not user things.
+#ifndef EASTL_DEV_ASSERT_ENABLED
+    #define EASTL_DEV_ASSERT_ENABLED EASTL_DEV_DEBUG
 #endif
 
 
@@ -447,6 +521,16 @@ namespace eastl
     #endif
 #endif
 
+// Developer assert. Helps EASTL developers assert EASTL is coded correctly. 
+// Normally disabled for users since it validates internal things and not user things.
+#ifndef EASTL_DEV_ASSERT
+    #if EASTL_DEV_ASSERT_ENABLED
+        #define EASTL_DEV_ASSERT(expression) (void)((expression) || (eastl::AssertionFailure(#expression), 0))
+    #else
+        #define EASTL_DEV_ASSERT(expression)
+    #endif
+#endif
+
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -482,26 +566,29 @@ namespace eastl
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-#if defined(EASTL_DEBUG) && !defined(EASTL_CT_ASSERT)
-    template <bool>  struct EASTL_CT_ASSERTION_FAILURE;
-    template <>      struct EASTL_CT_ASSERTION_FAILURE<true>{ enum { value = 1 }; }; // We create a specialization for true, but not for false.
-    template <int x> struct EASTL_CT_ASSERTION_TEST{};
-
-    #define EASTL_PREPROCESSOR_JOIN(a, b)  EASTL_PREPROCESSOR_JOIN1(a, b)
-    #define EASTL_PREPROCESSOR_JOIN1(a, b) EASTL_PREPROCESSOR_JOIN2(a, b)
-    #define EASTL_PREPROCESSOR_JOIN2(a, b) a##b
-
-    #if defined(_MSC_VER)
-        #define EASTL_CT_ASSERT(expression)  typedef EASTL_CT_ASSERTION_TEST< sizeof(EASTL_CT_ASSERTION_FAILURE< (bool)(expression) >)> EASTL_CT_ASSERT_FAILURE
-    #elif defined(__ICL) || defined(__ICC)
-        #define EASTL_CT_ASSERT(expression)  typedef char EASTL_PREPROCESSOR_JOIN(EASTL_CT_ASSERT_FAILURE_, __LINE__) [EASTL_CT_ASSERTION_FAILURE< (bool)(expression) >::value]
-    #else // GCC, etc.
-        #define EASTL_CT_ASSERT(expression)  typedef EASTL_CT_ASSERTION_TEST< sizeof(EASTL_CT_ASSERTION_FAILURE< (bool)(expression) >)> EASTL_PREPROCESSOR_JOIN1(EASTL_CT_ASSERT_FAILURE_, __LINE__)
-    #endif
+#if (EABASE_VERSION_N >= 20021)
+    #define EASTL_CT_ASSERT(expression) static_assert(expression, #expression)
 #else
-    #define EASTL_CT_ASSERT(expression)
-#endif
+    #if defined(EASTL_DEBUG) && !defined(EASTL_CT_ASSERT)
+        template <bool>  struct EASTL_CT_ASSERTION_FAILURE;
+        template <>      struct EASTL_CT_ASSERTION_FAILURE<true>{ enum { value = 1 }; }; // We create a specialization for true, but not for false.
+        template <int x> struct EASTL_CT_ASSERTION_TEST{};
 
+        #define EASTL_PREPROCESSOR_JOIN(a, b)  EASTL_PREPROCESSOR_JOIN1(a, b)
+        #define EASTL_PREPROCESSOR_JOIN1(a, b) EASTL_PREPROCESSOR_JOIN2(a, b)
+        #define EASTL_PREPROCESSOR_JOIN2(a, b) a##b
+
+        #if defined(_MSC_VER)
+            #define EASTL_CT_ASSERT(expression)  typedef EASTL_CT_ASSERTION_TEST< sizeof(EASTL_CT_ASSERTION_FAILURE< (bool)(expression) >)> EASTL_CT_ASSERT_FAILURE
+        #elif defined(__ICL) || defined(__ICC)
+            #define EASTL_CT_ASSERT(expression)  typedef char EASTL_PREPROCESSOR_JOIN(EASTL_CT_ASSERT_FAILURE_, __LINE__) [EASTL_CT_ASSERTION_FAILURE< (bool)(expression) >::value]
+        #else // GCC, etc.
+            #define EASTL_CT_ASSERT(expression)  typedef EASTL_CT_ASSERTION_TEST< sizeof(EASTL_CT_ASSERTION_FAILURE< (bool)(expression) >)> EASTL_PREPROCESSOR_JOIN1(EASTL_CT_ASSERT_FAILURE_, __LINE__)
+        #endif
+    #else
+        #define EASTL_CT_ASSERT(expression)
+    #endif
+#endif
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -542,6 +629,8 @@ namespace eastl
 // If enabled (1) then container operator= copies the allocator from the 
 // source container. It ideally should be set to enabled but for backwards
 // compatibility with older versions of EASTL it is currently set to 0.
+// Regardless of whether this value is 0 or 1, this container copy constructors
+// copy allocators.
 //
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -685,7 +774,6 @@ namespace eastl
 
 
 
-
 ///////////////////////////////////////////////////////////////////////////////
 // EASTL_BITSET_SIZE_T
 //
@@ -694,6 +782,106 @@ namespace eastl
 //
 #ifndef EASTL_BITSET_SIZE_T
     #define EASTL_BITSET_SIZE_T 1
+#endif
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+// EASTL_INT128_SUPPORTED
+//
+// Defined as 0 or 1.
+//
+#ifndef EASTL_INT128_SUPPORTED
+    #if defined(EA_COMPILER_INTMAX_SIZE) && (EA_COMPILER_INTMAX_SIZE >= 16) // If the compiler supports int128_t (recent versions of GCC do)...
+        #define EASTL_INT128_SUPPORTED 1
+    #else
+        #define EASTL_INT128_SUPPORTED 0
+    #endif
+#endif
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+// EASTL_DEFAULT_ALLOCATOR_ALIGNED_ALLOCATIONS_SUPPORTED
+//
+// Defined as 0 or 1.
+// Tells if you can use the default EASTL allocator to do aligned allocations,
+// which for most uses tells if you can store aligned objects in containers
+// that use default allocators. It turns out that when built as a DLL for 
+// some platforms, EASTL doesn't have a way to do aligned allocations, as it
+// doesn't have a heap that supports it. There is a way to work around this 
+// with dynamically defined allocators, but that's currently a to-do.
+//
+#ifndef EASTL_DEFAULT_ALLOCATOR_ALIGNED_ALLOCATIONS_SUPPORTED
+    #if EASTL_DLL
+        #define EASTL_DEFAULT_ALLOCATOR_ALIGNED_ALLOCATIONS_SUPPORTED 0
+    #else
+        #define EASTL_DEFAULT_ALLOCATOR_ALIGNED_ALLOCATIONS_SUPPORTED 1
+    #endif
+#endif
+
+
+///////////////////////////////////////////////////////////////////////////////
+// EASTL_INT128_DEFINED
+//
+// Defined as 0 or 1.
+// Specifies whether eastl_int128_t/eastl_uint128_t have been typedef'd yet.
+//
+#ifndef EASTL_INT128_DEFINED
+    #if EASTL_INT128_SUPPORTED
+        #define EASTL_INT128_DEFINED 1
+
+        #if defined(__GNUC__)
+            typedef __int128_t   eastl_int128_t;
+            typedef __uint128_t eastl_uint128_t;
+        #else
+            typedef  int128_t  eastl_int128_t;  // The EAStdC package defines an EA::StdC::int128_t and uint128_t type,
+            typedef uint128_t eastl_uint128_t;  // though they are currently within the EA::StdC namespace.
+        #endif
+    #endif
+#endif
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+// EASTL_BITSET_WORD_TYPE_DEFAULT / EASTL_BITSET_WORD_SIZE_DEFAULT
+//
+// Defined as an integral power of two type, usually uint32_t or uint64_t.
+// Specifies the word type that bitset should use internally to implement
+// storage. By default this is the platform register word size, but there 
+// may be reasons to use a different value.
+//
+// Defines the integral data type used by bitset by default.
+// You can override this default on a bitset-by-bitset case by supplying a 
+// custom bitset WordType template parameter. 
+//
+// The C++ standard specifies that the std::bitset word type be unsigned long, 
+// but that isn't necessarily the most efficient data type for the given platform.
+// We can follow the standard and be potentially less efficient or we can do what
+// is more efficient but less like the C++ std::bitset.
+//
+#if !defined(EASTL_BITSET_WORD_TYPE_DEFAULT)
+    #if defined(EASTL_BITSET_WORD_SIZE)         // EASTL_BITSET_WORD_SIZE is deprecated, but we temporarily support the ability for the user to specify it. Use EASTL_BITSET_WORD_TYPE_DEFAULT instead.
+        #if (EASTL_BITSET_WORD_SIZE == 4)
+            #define EASTL_BITSET_WORD_TYPE_DEFAULT uint32_t
+            #define EASTL_BITSET_WORD_SIZE_DEFAULT 4
+        #else
+            #define EASTL_BITSET_WORD_TYPE_DEFAULT uint64_t
+            #define EASTL_BITSET_WORD_SIZE_DEFAULT 8
+        #endif
+    #elif (EA_PLATFORM_WORD_SIZE == 16)                     // EA_PLATFORM_WORD_SIZE is defined in EABase.
+        #define EASTL_BITSET_WORD_TYPE_DEFAULT uint128_t
+        #define EASTL_BITSET_WORD_SIZE_DEFAULT 16
+    #elif (EA_PLATFORM_WORD_SIZE == 8)
+        #define EASTL_BITSET_WORD_TYPE_DEFAULT uint64_t
+        #define EASTL_BITSET_WORD_SIZE_DEFAULT 8
+    #elif (EA_PLATFORM_WORD_SIZE == 4)
+        #define EASTL_BITSET_WORD_TYPE_DEFAULT uint32_t
+        #define EASTL_BITSET_WORD_SIZE_DEFAULT 4
+    #else
+        #define EASTL_BITSET_WORD_TYPE_DEFAULT uint16_t
+        #define EASTL_BITSET_WORD_SIZE_DEFAULT 2
+    #endif
 #endif
 
 
@@ -752,7 +940,7 @@ namespace eastl
 // Defined as 0 or 1. Default is 1 for compilers that need it, 0 for others.
 // Some compilers on some platforms implement va_list whereby its contents  
 // are destroyed upon usage, even if passed by value to another function. 
-// With these compilers you can use va_copy to restore the a va_list.
+// With these compilers you can use va_copy to restore a va_list.
 // Known compiler/platforms that destroy va_list contents upon usage include:
 //     CodeWarrior on PowerPC
 //     GCC on x86-64
@@ -794,7 +982,7 @@ namespace eastl
 ///////////////////////////////////////////////////////////////////////////////
 // EASTL_STD_ITERATOR_CATEGORY_ENABLED
 //
-// Defined as 0 or 1. Default is 1.
+// Defined as 0 or 1. Default is 0 (changed from 1 to 0 in 
 // If defined as non-zero, EASTL iterator categories (iterator.h's input_iterator_tag,
 // forward_iterator_tag, etc.) are defined to be those from std C++ in the std 
 // namespace. The reason for wanting to enable such a feature is that it allows 
@@ -803,7 +991,7 @@ namespace eastl
 ///////////////////////////////////////////////////////////////////////////////
 
 #ifndef EASTL_STD_ITERATOR_CATEGORY_ENABLED
-    #define EASTL_STD_ITERATOR_CATEGORY_ENABLED 1
+    #define EASTL_STD_ITERATOR_CATEGORY_ENABLED 0
 #endif
 
 #if EASTL_STD_ITERATOR_CATEGORY_ENABLED
@@ -811,7 +999,6 @@ namespace eastl
 #else
     #define EASTL_ITC_NS eastl
 #endif
-
 
 
 
@@ -832,7 +1019,6 @@ namespace eastl
 #ifndef EASTL_VALIDATION_ENABLED
     #define EASTL_VALIDATION_ENABLED EASTL_DEBUG
 #endif
-
 
 
 
@@ -908,7 +1094,7 @@ namespace eastl
 //    typedef uint32_t EASTL_MAY_ALIAS value_type;
 //    value_type value;
 //
-#if defined(__GNUC__) && (((__GNUC__ * 100) + __GNUC_MINOR__) >= 303)
+#if defined(__GNUC__) && (((__GNUC__ * 100) + __GNUC_MINOR__) >= 303) 
     #define EASTL_MAY_ALIAS __attribute__((__may_alias__))
 #else
     #define EASTL_MAY_ALIAS
@@ -946,6 +1132,85 @@ namespace eastl
         #define EASTL_LIKELY(x)   (x)
         #define EASTL_UNLIKELY(x) (x)
     #endif
+#endif
+
+
+///////////////////////////////////////////////////////////////////////////////
+// EASTL_INTRINSIC_TYPE_TRAITS_AVAILABLE
+//
+// Defined as 0 or 1; default is based on auto-detection.
+// Specifies whether compiler-provided type traits support exists. 
+// Sometimes the auto-detection below fails to work properly and the 
+// user needs to override it.
+//
+#ifndef EASTL_INTRINSIC_TYPE_TRAITS_AVAILABLE
+    #if defined(_MSC_VER) && (_MSC_VER >= 1500) && !defined(CS_UNDEFINED_STRING) // VS2008 or later, and not Airplay, which pretends it's VC++ when it's not.
+        #pragma warning(push, 0)
+            #include <yvals.h>
+        #pragma warning(pop)
+        #if defined(_HAS_TR1) && _HAS_TR1
+            #define EASTL_INTRINSIC_TYPE_TRAITS_AVAILABLE 1
+            #include <type_traits>
+        #else
+            #define EASTL_INTRINSIC_TYPE_TRAITS_AVAILABLE 0
+        #endif
+
+    #elif defined(EA_COMPILER_CLANG) || (defined(EA_COMPILER_GNUC) && (EA_COMPILER_VERSION >= 4003) && !defined(__GCCXML__)) && !defined(EA_COMPILER_NO_STANDARD_CPP_LIBRARY)
+        #include <cstddef> // This will define __GLIBCXX__ if using GNU's libstdc++ and _LIBCPP_VERSION if using clang's libc++.
+
+        #if defined(EA_COMPILER_CLANG) && !defined(EA_PLATFORM_APPLE) // As of v3.0.0, Apple's clang doesn't support type traits.
+            // http://clang.llvm.org/docs/LanguageExtensions.html#checking_type_traits
+            // Clang has some built-in compiler trait support. This support doesn't currently 
+            // directly cover all our type_traits, though the C++ Standard Library that's used
+            // with clang could fill that in.
+            #define EASTL_INTRINSIC_TYPE_TRAITS_AVAILABLE 1
+        #endif
+
+        #if !defined(EASTL_INTRINSIC_TYPE_TRAITS_AVAILABLE)
+            #if defined(_LIBCPP_VERSION) // This is defined by clang's libc++.
+                #include <type_traits>
+
+            #elif defined(__GLIBCXX__) && (__GLIBCXX__ >= 20090124) // It's not clear if this is the oldest version that has type traits; probably it isn't.
+                #define EASTL_INTRINSIC_TYPE_TRAITS_AVAILABLE 1
+
+                #if defined(__GXX_EXPERIMENTAL_CXX0X__) // To do: Update this test to include conforming C++11 implementations.
+                    #include <type_traits>
+                #else
+                    #include <tr1/type_traits>
+                #endif
+            #else
+                #define EASTL_INTRINSIC_TYPE_TRAITS_AVAILABLE 0
+            #endif
+        #endif
+
+    #elif defined(__MSL_CPP__) && (__MSL_CPP__ >= 0x8000) // CodeWarrior compiler.
+        #define EASTL_INTRINSIC_TYPE_TRAITS_AVAILABLE 0
+        // To do: Implement support for this (via modifying the EASTL type 
+        //        traits headers, as CodeWarrior provides this.
+    #else
+        #define EASTL_INTRINSIC_TYPE_TRAITS_AVAILABLE 0
+    #endif
+#endif
+
+
+///////////////////////////////////////////////////////////////////////////////
+// EASTL_RESET_ENABLED
+//
+// Defined as 0 or 1; default is 1 for the time being.
+// The reset_lose_memory function works the same as reset, as described below.
+//
+// Specifies whether the container reset functionality is enabled. If enabled
+// then <container>::reset forgets its memory, otherwise it acts as the clear 
+// function. The reset function is potentially dangerous, as it (by design)
+// causes containers to not free their memory.
+// This option has no applicability to the bitset::reset function, as bitset
+// isn't really a container. Also it has no applicability to the smart pointer
+// wrappers (e.g. intrusive_ptr).
+//
+///////////////////////////////////////////////////////////////////////////////
+
+#ifndef EASTL_RESET_ENABLED
+    #define EASTL_RESET_ENABLED 1
 #endif
 
 
@@ -987,6 +1252,30 @@ namespace eastl
     #define EASTL_NOMINMAX 1
 #endif
 
+   
+   
+///////////////////////////////////////////////////////////////////////////////
+// EASTL_STD_CPP_ONLY
+//
+// Defined as 0 or 1; default is 0.
+// Disables the use of compiler language extensions. We use compiler language
+// extensions only in the case that they provide some benefit that can't be 
+// had any other practical way. But sometimes the compiler is set to disable 
+// language extensions or sometimes one compiler's preprocesor is used to generate
+// code for another compiler, and so it's necessary to disable language extension usage.
+//
+// Example usage:
+//     #if defined(_MSC_VER) && !EASTL_STD_CPP_ONLY
+//         enum : size_type { npos = container_type::npos };    // Microsoft extension which results in significantly smaller debug symbols.
+//     #else
+//         static const size_type npos = container_type::npos;
+//     #endif
+//
+///////////////////////////////////////////////////////////////////////////////
+
+#ifndef EASTL_STD_CPP_ONLY
+    #define EASTL_STD_CPP_ONLY 0
+#endif
 
 
 
@@ -1023,8 +1312,12 @@ namespace eastl
 //
 ///////////////////////////////////////////////////////////////////////////////
 
+#ifndef EASTL_SIZE_T_32BIT        // Defines whether EASTL_SIZE_T uses uint32_t/int32_t as opposed to size_t/ssize_t.
+    #define EASTL_SIZE_T_32BIT 0  // This makes a difference on 64 bit platforms because they use a 64 bit size_t.
+#endif                            // By default we do the same thing as std STL and use size_t. 
+
 #ifndef EASTL_SIZE_T
-    #if(EA_PLATFORM_WORD_SIZE == 4) // If (sizeof(size_t) == 4) and we can thus use size_t as-is...
+    #if (EASTL_SIZE_T_32BIT == 0) || (EA_PLATFORM_WORD_SIZE == 4)
         #include <stddef.h>
         #define EASTL_SIZE_T  size_t
         #define EASTL_SSIZE_T intptr_t
@@ -1036,8 +1329,6 @@ namespace eastl
 
 typedef EASTL_SIZE_T  eastl_size_t;  // Same concept as std::size_t.
 typedef EASTL_SSIZE_T eastl_ssize_t; // Signed version of eastl_size_t. Concept is similar to Posix's ssize_t.
-
-
 
 
 
@@ -1148,11 +1439,15 @@ typedef EASTL_SSIZE_T eastl_ssize_t; // Signed version of eastl_size_t. Concept 
 #endif
 
 #ifndef EASTLFree
-    #define EASTLFree(allocator, p, size) (allocator).deallocate((p), (size))
+    #define EASTLFree(allocator, p, size) (allocator).deallocate((void*)(p), (size)) // Important to cast to void* as p may be non-const.
 #endif
 
 #ifndef EASTLAllocatorType
     #define EASTLAllocatorType eastl::allocator
+#endif
+
+#ifndef EASTLDummyAllocatorType
+    #define EASTLDummyAllocatorType eastl::dummy_allocator
 #endif
 
 #ifndef EASTLAllocatorDefault
@@ -1164,46 +1459,11 @@ typedef EASTL_SSIZE_T eastl_ssize_t; // Signed version of eastl_size_t. Concept 
     #define EASTLAllocatorDefault eastl::GetDefaultAllocator
 #endif
 
-///////////////////////////////////////////////////////////////////////////////
-// EASTL_BITSET_WORD_TYPE_DEFAULT / EASTL_BITSET_WORD_SIZE_DEFAULT
-//
-// Defined as an integral power of two type, usually uint32_t or uint64_t.
-// Specifies the word type that bitset should use internally to implement
-// storage. By default this is the platform register word size, but there 
-// may be reasons to use a different value.
-//
-// Defines the integral data type used by bitset by default.
-// You can override this default on a bitset-by-bitset case by supplying a 
-// custom bitset WordType template parameter. 
-//
-// The C++ standard specifies that the std::bitset word type be unsigned long, 
-// but that isn't necessarily the most efficient data type for the given platform.
-// We can follow the standard and be potentially less efficient or we can do what
-// is more efficient but less like the C++ std::bitset.
-//
-#if !defined(EASTL_BITSET_WORD_TYPE_DEFAULT)
-#if defined(EASTL_BITSET_WORD_SIZE)         // EASTL_BITSET_WORD_SIZE is deprecated, but we temporarily support the ability for the user to specify it. Use EASTL_BITSET_WORD_TYPE_DEFAULT instead.
-#if (EASTL_BITSET_WORD_SIZE == 4)
-#define EASTL_BITSET_WORD_TYPE_DEFAULT uint32_t
-#define EASTL_BITSET_WORD_SIZE_DEFAULT 4
-#else
-#define EASTL_BITSET_WORD_TYPE_DEFAULT uint64_t
-#define EASTL_BITSET_WORD_SIZE_DEFAULT 8
-#endif
-#elif (EA_PLATFORM_WORD_SIZE == 16)                     // EA_PLATFORM_WORD_SIZE is defined in EABase.
-#define EASTL_BITSET_WORD_TYPE_DEFAULT uint128_t
-#define EASTL_BITSET_WORD_SIZE_DEFAULT 16
-#elif (EA_PLATFORM_WORD_SIZE == 8)
-#define EASTL_BITSET_WORD_TYPE_DEFAULT uint64_t
-#define EASTL_BITSET_WORD_SIZE_DEFAULT 8
-#elif (EA_PLATFORM_WORD_SIZE == 4)
-#define EASTL_BITSET_WORD_TYPE_DEFAULT uint32_t
-#define EASTL_BITSET_WORD_SIZE_DEFAULT 4
-#else
-#define EASTL_BITSET_WORD_TYPE_DEFAULT uint16_t
-#define EASTL_BITSET_WORD_SIZE_DEFAULT 2
-#endif
-#endif
+
+
+
+
+
 
 
 #endif // Header include guard
