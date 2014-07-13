@@ -577,7 +577,7 @@ namespace eastl
     // a simple insertion sort.
     /////////////////////////////////////////////////////////////////////
 
-    #if defined(CS_UNDEFINED_STRING) || defined(EA_PROCESSOR_X86_64)  && defined(_MSC_VER)
+    #if defined(EA_PROCESSOR_X86) || defined(EA_PROCESSOR_X86_64)  && defined(_MSC_VER)
         static const int kQuickSortLimit = 28; // For sorts of random arrays over 100 items, 28 - 32 have been found to be good numbers on VC++/Win32.
     #else
         static const int kQuickSortLimit = 16; // It seems that on other processors lower limits are more beneficial, as they result in fewer compares.
